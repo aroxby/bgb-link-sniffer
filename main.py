@@ -5,10 +5,12 @@ from socketserver import ForkingTCPServer, StreamRequestHandler
 class EchoHandler(StreamRequestHandler):
     def handle(self):
         self.data = b''
-        line = self.rfile.readline()
-        while line.strip():
-            self.data += line
+        blanks = 0
+        while blanks < 1:
             line = self.rfile.readline()
+            self.data += line
+            if not line.strip():
+                blanks += 1
         print("{} wrote: ".format(self.client_address[0]))
         print(self.data.decode('utf-8'))
         self.wfile.write(self.data)
