@@ -38,31 +38,37 @@ class TCPClient(object):
         self.socket = None
 
 
-class RelayHandler(StreamRequestHandler):
+class MessageRelayHandler(StreamRequestHandler):
     def handle(self):
         data = self.rfile.read1()
         print("{}:{} wrote: ".format(*self.client_address))
-        print(data.decode('utf-8'))
+        print(self.server.message_formatter(data))
 
         with TCPClient(self.server.upstream_address) as client:
             client.send(data)
             resp = client.recv()
 
         print("{}:{} wrote: ".format(*self.server.upstream_address))
-        print(resp.decode('utf-8'))
+        print(self.server.message_formatter(resp))
         self.wfile.write(resp)
 
 
-class RelayServer(ForkingTCPServer):
-    def __init__(self, server_address, upstream_address):
-        super().__init__(server_address, RelayHandler)
+class MessageRelayServer(ForkingTCPServer):
+    def __init__(self, server_address, upstream_address, message_formatter):
+        super().__init__(server_address, MessageRelayHandler)
         self.upstream_address = upstream_address
+        self.message_formatter = message_formatter
 
+
+def text_formatter(data):
+    return data.decode('utf-8')
 
 def main():
     listen_address = ('127.0.0.1', 8080)
     upstream_address = ('www.example.com', 80)
-    with RelayServer(listen_address, upstream_address) as server:
+    with MessageRelayServer(
+        listen_address, upstream_address, text_formatter
+    ) as server:
         server.serve_forever()
 
 
