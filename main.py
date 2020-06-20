@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
+import struct
 import sys
 import argparse
 
 from server import MessageRelayServer
 
 
-def text_formatter(data):
-    return data.decode('utf-8')
+def parse_bgb(data):
+    msg = struct.unpack('=BBBBL', data)
+    return msg
 
 
 class AddressArgAction(argparse.Action):
@@ -48,7 +50,7 @@ def parse_args(argv):
 def main(argv):
     args = parse_args(argv[1:])
     with MessageRelayServer(
-        args.listen, args.connect, text_formatter
+        args.listen, args.connect, parse_bgb
     ) as server:
         server.serve_forever()
 
