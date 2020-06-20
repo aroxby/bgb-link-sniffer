@@ -3,25 +3,26 @@ import socket
 from socketserver import ForkingTCPServer, StreamRequestHandler
 
 
+class SelfBufferingSocket(object):
+    def __init__(self, socket):
+        self.socket = socket
+
+    def send(self, data):
+        self.socket.sendall(data)
+
+    def recv(self, max_data=16384, buffer_size=4096):
+        data = b''
+        while len(data) < max_data:
+            max_recv = min(buffer_size, max_data - len(data))
+            more_data = self.socket.recv(max_recv)
+            data += more_data
+            if len(more_data) < max_recv:
+                break
+
+        return data
+
+
 class TCPClient(object):
-    class SocketWrapper(object):
-        def __init__(self, socket):
-            self.socket = socket
-
-        def send(self, data):
-            self.socket.sendall(data)
-
-        def recv(self, max_data=16384, buffer_size=4096):
-            data = b''
-            while len(data) < max_data:
-                max_recv = min(buffer_size, max_data - len(data))
-                more_data = self.socket.recv(max_recv)
-                data += more_data
-                if len(more_data) < max_recv:
-                    break
-
-            return data
-
     def __init__(self, server_address):
         self.server_address = server_address
         self.socket = None
@@ -30,7 +31,7 @@ class TCPClient(object):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.__enter__()
         self.socket.connect(self.server_address)
-        return self.SocketWrapper(self.socket)
+        return SelfBufferingSocket(self.socket)
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.socket.__exit__(exc_type, exc_value, exc_traceback)
@@ -44,8 +45,6 @@ class RelayHandler(StreamRequestHandler):
         print(data.decode('utf-8'))
 
         with TCPClient(self.server.upstream_address) as client:
-            MAX_RECV = 4096
-            MAX_RESP = MAX_RECV * MAX_RECV
             client.send(data)
             resp = client.recv()
 
