@@ -21,13 +21,7 @@ class TCPClient(object):
 
 class RelayHandler(StreamRequestHandler):
     def handle(self):
-        data = b''
-        blanks = 0
-        while blanks < 1:
-            line = self.rfile.readline()
-            data += line
-            if not line.strip():
-                blanks += 1
+        data = self.rfile.read1()
         print("{}:{} wrote: ".format(*self.client_address))
         print(data.decode('utf-8'))
 
