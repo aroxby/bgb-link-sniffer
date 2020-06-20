@@ -53,6 +53,8 @@ class MessageRelayHandler(StreamRequestHandler):
                 print("{}:{} wrote: ".format(*self.server.upstream_address))
                 print(self.server.message_formatter(resp))
                 client.send(resp)
+                if not resp:
+                    break
 
 
 class MessageRelayServer(ForkingTCPServer):
