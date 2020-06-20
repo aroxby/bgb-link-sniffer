@@ -3,12 +3,7 @@ import struct
 import sys
 import argparse
 
-from server import MessageRelayServer
-
-
-def parse_bgb(data):
-    msg = struct.unpack('=BBBBL', data)
-    return msg
+from server import BGBRelayServer
 
 
 class AddressArgAction(argparse.Action):
@@ -49,9 +44,7 @@ def parse_args(argv):
 
 def main(argv):
     args = parse_args(argv[1:])
-    with MessageRelayServer(
-        args.listen, args.connect, parse_bgb
-    ) as server:
+    with BGBRelayServer(args.listen, args.connect) as server:
         server.serve_forever()
 
 

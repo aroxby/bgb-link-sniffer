@@ -1,6 +1,8 @@
 import socket
 from socketserver import ForkingTCPServer, StreamRequestHandler
 
+from bgb import BGBMessage
+
 
 class SelfBufferingSocket(object):
     def __init__(self, socket):
@@ -37,28 +39,30 @@ class TCPClient(object):
         self.socket = None
 
 
-class MessageRelayHandler(StreamRequestHandler):
+class BGBRelayHandler(StreamRequestHandler):
     def handle(self):
         client = SelfBufferingSocket(self.request)
         with TCPClient(self.server.upstream_address) as upstream:
             while True:
-                data = client.recv()
+                data = client.recv(BGBMessage.SIZE)
                 if not data:
                     break
-                print("{}:{} wrote: ".format(*self.client_address))
-                print(self.server.message_formatter(data))
+                client_msg = BGBMessage(data)
+                if client_msg.is_interesting():
+                    print("{}:{} wrote: ".format(*self.client_address))
+                    print(client_msg)
 
                 upstream.send(data)
-                resp = upstream.recv()
-                print("{}:{} wrote: ".format(*self.server.upstream_address))
-                print(self.server.message_formatter(resp))
-                client.send(resp)
+                resp = upstream.recv(BGBMessage.SIZE)
                 if not resp:
                     break
+                upstream_msg = BGBMessage(data)
+                if upstream_msg.is_interesting():
+                    print("{}:{} wrote: ".format(*self.server.upstream_address))
+                    print(upstream_msg)
 
 
-class MessageRelayServer(ForkingTCPServer):
-    def __init__(self, server_address, upstream_address, message_formatter):
-        super().__init__(server_address, MessageRelayHandler)
+class BGBRelayServer(ForkingTCPServer):
+    def __init__(self, server_address, upstream_address):
+        super().__init__(server_address, BGBRelayHandler)
         self.upstream_address = upstream_address
-        self.message_formatter = message_formatter
