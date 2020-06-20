@@ -60,6 +60,7 @@ class BGBRelayHandler(StreamRequestHandler):
                 if upstream_msg.is_interesting():
                     print("{}:{} wrote: ".format(*self.server.upstream_address))
                     print(upstream_msg)
+                client.send(resp)
 
 
 class BGBRelayServer(ForkingTCPServer):
