@@ -39,17 +39,19 @@ class TCPClient(object):
 
 class MessageRelayHandler(StreamRequestHandler):
     def handle(self):
-        data = self.rfile.read1()
-        print("{}:{} wrote: ".format(*self.client_address))
-        print(self.server.message_formatter(data))
+        with TCPClient(self.server.upstream_address) as upstream:
+            while True:
+                data = self.rfile.read1()
+                if not data:
+                    break
+                print("{}:{} wrote: ".format(*self.client_address))
+                print(self.server.message_formatter(data))
 
-        with TCPClient(self.server.upstream_address) as client:
-            client.send(data)
-            resp = client.recv()
-
-        print("{}:{} wrote: ".format(*self.server.upstream_address))
-        print(self.server.message_formatter(resp))
-        self.wfile.write(resp)
+                upstream.send(data)
+                resp = upstream.recv()
+                print("{}:{} wrote: ".format(*self.server.upstream_address))
+                print(self.server.message_formatter(resp))
+                self.wfile.write(resp)
 
 
 class MessageRelayServer(ForkingTCPServer):
