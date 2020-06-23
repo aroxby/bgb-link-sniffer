@@ -5,26 +5,9 @@ from socketserver import ForkingTCPServer, StreamRequestHandler
 from bgb import BGBMessage
 
 
-class SelfBufferingSocket(object):
-    def __init__(self, socket):
-        self.socket = socket
-
-    def send(self, data):
-        self.socket.sendall(data)
-
-    def recv(self, max_data=16384, buffer_size=4096):
-        data = b''
-        while len(data) < max_data:
-            max_recv = min(buffer_size, max_data - len(data))
-            more_data = self.socket.recv(max_recv)
-            data += more_data
-            if len(more_data) < max_recv:
-                break
-        return data
-
-    def would_block(self):
-        rtr, rtw, err = select([self.socket], [], [], 0)
-        return not bool(rtr)
+def _recv_would_block(socket):
+    rtr, rtw, err = select([socket], [], [], 0)
+    return not bool(rtr)
 
 
 class TCPClient(object):
@@ -36,7 +19,7 @@ class TCPClient(object):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.__enter__()
         self.socket.connect(self.server_address)
-        return SelfBufferingSocket(self.socket)
+        return self.socket
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.socket.__exit__(exc_type, exc_value, exc_traceback)
@@ -45,11 +28,11 @@ class TCPClient(object):
 
 class BGBRelayHandler(StreamRequestHandler):
     def handle(self):
-        client = SelfBufferingSocket(self.request)
+        client = self.request
         quit = False
         with TCPClient(self.server.upstream_address) as upstream:
             while not quit:
-                while not quit and not client.would_block():
+                while not quit and not _recv_would_block(client):
                     data = client.recv(BGBMessage.SIZE)
                     if not data:
                         quit = True
@@ -58,9 +41,9 @@ class BGBRelayHandler(StreamRequestHandler):
                     if client_msg.is_interesting():
                         print("{}:{} wrote: ".format(*self.client_address))
                         print(client_msg)
-                    upstream.send(data)
+                    upstream.sendall(data)
 
-                while not quit and not upstream.would_block():
+                while not quit and not _recv_would_block(upstream):
                     resp = upstream.recv(BGBMessage.SIZE)
                     if not resp:
                         quit = True
@@ -69,7 +52,7 @@ class BGBRelayHandler(StreamRequestHandler):
                     if upstream_msg.is_interesting():
                         print("{}:{} wrote: ".format(*self.server.upstream_address))
                         print(upstream_msg)
-                    client.send(resp)
+                    client.sendall(resp)
 
 
 class BGBRelayServer(ForkingTCPServer):
