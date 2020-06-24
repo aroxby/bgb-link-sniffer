@@ -1,12 +1,7 @@
+from socketserver import ForkingTCPServer, StreamRequestHandler
 import struct
-# HACK: This networking stuff can't live in this module
-# To be removed when I resolved the circular import
-from select import select
 
-
-def ready_to_read(socket):
-    rtr, rtw, err = select([socket], [], [], 0)
-    return bool(rtr)
+from network import ready_to_read, TCPClient
 
 
 class BGBMessage(object):
@@ -46,3 +41,28 @@ class BGBChannel(object):
 
     def send_message(self, msg):
         self.socket.sendall(msg.to_data())
+
+
+class BGBRelayHandler(StreamRequestHandler):
+    def handle(self):
+        client = BGBChannel(self.request)
+        with TCPClient(self.server.upstream_address) as upstream_socket:
+            upstream = BGBChannel(upstream_socket)
+            while not client.closed and not upstream.closed:
+                for client_msg in client.recv_messages():
+                    if client_msg.is_interesting():
+                        print("{}:{} wrote: ".format(*self.client_address))
+                        print(client_msg)
+                    upstream.send_message(client_msg)
+
+                for upstream_msg in upstream.recv_messages():
+                    if upstream_msg.is_interesting():
+                        print("{}:{} wrote: ".format(*self.server.upstream_address))
+                        print(upstream_msg)
+                    client.send_message(upstream_msg)
+
+
+class BGBRelayServer(ForkingTCPServer):
+    def __init__(self, server_address, upstream_address):
+        super().__init__(server_address, BGBRelayHandler)
+        self.upstream_address = upstream_address
