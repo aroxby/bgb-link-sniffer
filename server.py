@@ -2,12 +2,7 @@ from select import select
 import socket
 from socketserver import ForkingTCPServer, StreamRequestHandler
 
-from bgb import BGBMessage
-
-
-def _recv_would_block(socket):
-    rtr, rtw, err = select([socket], [], [], 0)
-    return not bool(rtr)
+from bgb import BGBChannel
 
 
 class TCPClient(object):
@@ -28,31 +23,21 @@ class TCPClient(object):
 
 class BGBRelayHandler(StreamRequestHandler):
     def handle(self):
-        client = self.request
-        quit = False
-        with TCPClient(self.server.upstream_address) as upstream:
-            while not quit:
-                while not quit and not _recv_would_block(client):
-                    data = client.recv(BGBMessage.SIZE)
-                    if not data:
-                        quit = True
-                        break
-                    client_msg = BGBMessage(data)
+        client = BGBChannel(self.request)
+        with TCPClient(self.server.upstream_address) as upstream_socket:
+            upstream = BGBChannel(upstream_socket)
+            while not client.closed and not upstream.closed:
+                for client_msg in client.recv_messages():
                     if client_msg.is_interesting():
                         print("{}:{} wrote: ".format(*self.client_address))
                         print(client_msg)
-                    upstream.sendall(data)
+                    upstream.send_message(client_msg)
 
-                while not quit and not _recv_would_block(upstream):
-                    resp = upstream.recv(BGBMessage.SIZE)
-                    if not resp:
-                        quit = True
-                        break
-                    upstream_msg = BGBMessage(data)
+                for upstream_msg in upstream.recv_messages():
                     if upstream_msg.is_interesting():
                         print("{}:{} wrote: ".format(*self.server.upstream_address))
                         print(upstream_msg)
-                    client.sendall(resp)
+                    client.send_message(upstream_msg)
 
 
 class BGBRelayServer(ForkingTCPServer):
