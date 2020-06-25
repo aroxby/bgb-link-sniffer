@@ -5,6 +5,11 @@ from network import ready_to_read, TCPClient
 
 
 class BGBMessage(object):
+    """
+    BGB 1.4 link protocol
+    https://bgb.bircd.org/bgblink.html
+    """
+
     SIZE = 8
     _STRUCT_FORMAT = '=BBBBL'
 
