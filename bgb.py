@@ -152,7 +152,7 @@ class BGBConnectionHandler(StreamRequestHandler):
         handler.handle(BGBLinkFile(self.accept_client()))
 
 
-class BGBRelayServer(ForkingTCPServer):
+class BGBServer(ForkingTCPServer):
     def __init__(self, server_address):
         super().__init__(server_address, BGBConnectionHandler)
         print('Server ready!')

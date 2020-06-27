@@ -3,7 +3,7 @@ import struct
 import sys
 import argparse
 
-from bgb import BGBRelayServer
+from bgb import BGBServer
 
 
 class AddressArgAction(argparse.Action):
