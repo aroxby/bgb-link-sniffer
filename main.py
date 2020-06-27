@@ -30,13 +30,6 @@ def parse_args(argv):
         metavar='LISTEN_ADDRESS',
         required=True,
     )
-    parser.add_argument(
-        '--connect',
-        action=AddressArgAction,
-        help='Relay data to this address (host:port)',
-        metavar='UPSTREAM_ADDRESS',
-        required=True,
-    )
 
     args = parser.parse_args(argv)
     return args
@@ -44,7 +37,7 @@ def parse_args(argv):
 
 def main(argv):
     args = parse_args(argv[1:])
-    with BGBRelayServer(args.listen, args.connect) as server:
+    with BGBRelayServer(args.listen) as server:
         server.serve_forever()
 
 

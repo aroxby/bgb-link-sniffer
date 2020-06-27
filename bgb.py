@@ -1,7 +1,7 @@
 from socketserver import ForkingTCPServer, StreamRequestHandler
 import struct
 
-from network import ready_to_read, TCPClient
+from network import ready_to_read
 
 
 class BGBMessage(object):
@@ -55,6 +55,7 @@ class StandardBGBMessages(object):
     HANDSHAKE = BGBMessage(BGBMessage.CMD_HANDSHAKE, 1, 4, 0, 0)
     OPEN_STATUS = BGBMessage(BGBMessage.CMD_STATUS, 5, 0, 0, 0)
 
+
 class BGBChannel(object):
     def __init__(self, socket):
         self.socket = socket
@@ -103,39 +104,6 @@ class BGBLinkFile(object):
         return self.channel.closed
 
 
-class BGBRelayHandler(StreamRequestHandler):
-    def handle(self):
-        client = BGBChannel(self.request)
-        with TCPClient(self.server.upstream_address) as upstream_socket:
-            upstream = BGBChannel(upstream_socket)
-            while not client.closed and not upstream.closed:
-                client_values = []
-                for client_msg in client.recv_messages():
-                    client_value = client_msg.get_value()
-                    if client_value is not None:
-                        client_values.append(client_value)
-                    upstream.send_message(client_msg)
-                if client_values:
-                    print('Client write: {}'.format(client_values))
-
-                upstream_values = []
-                for upstream_msg in upstream.recv_messages():
-                    upsteam_value = upstream_msg.get_value()
-                    if upsteam_value is not None:
-                        upstream_values.append(upsteam_value)
-                    client.send_message(upstream_msg)
-                if upstream_values:
-                    print('Upstream write: {}'.format(upstream_values))
-
-
-class BGBRelayServer(ForkingTCPServer):
-    def __init__(self, server_address, upstream_address):
-        # super().__init__(server_address, BGBRelayHandler)
-        super().__init__(server_address, BGBConnectionHandler)
-        self.upstream_address = upstream_address
-        print('Server ready!')
-
-
 # TODO: Remove
 class ExampleLinkHandler(object):
     @staticmethod
@@ -179,38 +147,12 @@ class BGBConnectionHandler(StreamRequestHandler):
         client.send_message(StandardBGBMessages.OPEN_STATUS)
         return client
 
-    def connect_server(self):
-        upstream_address = self.server.upstream_address
-        upstream = TCPClient(upstream_address)
-        server = BGBChannel(upstream.__enter__())  # HACK
-
-        server.send_message(StandardBGBMessages.HANDSHAKE)
-
-        # Must wait for server to send handshake before proceeding
-        msgs = []
-        while not msgs:
-            msgs = [
-                msg for msg in server.recv_messages()
-                if msg.b1 == BGBMessage.CMD_HANDSHAKE
-            ]
-
-        server.send_message(StandardBGBMessages.OPEN_STATUS)
-
-        # Must wait for server to send status before proceeding
-        msgs = []
-        while not msgs:
-            msgs = [
-                msg for msg in server.recv_messages()
-                if msg.b1 == BGBMessage.CMD_STATUS
-            ]
-
-        # Send first sync
-        server.send_message(BGBMessage(
-            BGBMessage.CMD_TIME_SYNC, 0, 0, 0, 0
-        ))
-
-        return server
-
     def handle(self):
         handler = ExampleLinkHandler()
         handler.handle(BGBLinkFile(self.accept_client()))
+
+
+class BGBRelayServer(ForkingTCPServer):
+    def __init__(self, server_address):
+        super().__init__(server_address, BGBConnectionHandler)
+        print('Server ready!')
