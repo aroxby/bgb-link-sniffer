@@ -12,8 +12,10 @@ class BGBMessage(object):
 
     SIZE = 8
     _STRUCT_FORMAT = '=BBBBL'
+    CMD_HANDSHAKE = 1
     CMD_MASTER_SYNC = 104
     CMD_SLAVE_SYNC = 105
+    CMD_STATUS = 108
 
     @classmethod
     def unpack(cls, data):
@@ -48,6 +50,10 @@ class BGBMessage(object):
         return data
 
 
+class StandardBGBMessages(object):
+    HANDSHAKE = BGBMessage(BGBMessage.CMD_HANDSHAKE, 1, 4, 0, 0)
+    OPEN_STATUS = BGBMessage(BGBMessage.CMD_STATUS, 5, 0, 0, 0)
+
 class BGBChannel(object):
     def __init__(self, socket):
         self.socket = socket
@@ -63,6 +69,28 @@ class BGBChannel(object):
 
     def send_message(self, msg):
         self.socket.sendall(msg.to_data())
+
+
+class BGBLinkFile(object):
+    def __init__(self, channel):
+        self.channel = channel
+
+    def read(self):
+        data = []
+        msgs = self.channel.recv_messages()
+        data += [
+            msg.get_value() for msg in msgs if msg.get_value() != None
+        ]
+        return bytes(data)
+
+    def write(self, data):
+        for byte in data:
+            msg = BGBMessage.for_value(byte)
+            self.channel.send_message(msg)
+
+    @property
+    def closed(self):
+        return self.channel.closed
 
 
 class BGBRelayHandler(StreamRequestHandler):
@@ -92,5 +120,26 @@ class BGBRelayHandler(StreamRequestHandler):
 
 class BGBRelayServer(ForkingTCPServer):
     def __init__(self, server_address, upstream_address):
-        super().__init__(server_address, BGBRelayHandler)
+        # super().__init__(server_address, BGBRelayHandler)
+        super().__init__(server_address, BGBConnectionHandler)
         self.upstream_address = upstream_address
+        print('Server ready!')
+
+
+# TODO: Remove
+class ExampleLinkHandler(object):
+    def handle(self, link):
+        print('Client connected!')
+        while not link.closed:
+            data = link.read()
+            if data:
+                print("Read: {}".format(data))
+
+
+class BGBConnectionHandler(StreamRequestHandler):
+    def handle(self):
+        handler = ExampleLinkHandler()
+        client = BGBChannel(self.request)
+        client.send_message(StandardBGBMessages.HANDSHAKE)
+        client.send_message(StandardBGBMessages.OPEN_STATUS)
+        handler.handle(BGBLinkFile(client))
