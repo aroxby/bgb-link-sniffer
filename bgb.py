@@ -151,14 +151,16 @@ class ExampleLinkHandler(object):
                 print("Read: " + self.hex_dump(data))
                 if data == b'\x00':     # Link established
                     link.write(b'\x00')
-                if data == b'\x01':     # Client keeps the clock
+                elif data == b'\x01':     # Client keeps the clock
                     link.write(b'\x02')
-                if data == b'\x02':     # Server keeps the clock
+                elif data == b'\x02':     # Server keeps the clock
                     link.write(b'\x01')
-                if data == b'\x60':     # We have both saved the game?
+                elif data == b'\x60':     # We have both saved the game?
                     link.write(b'\x60')
-                if data in [b'\xd0', b'\xd1', b'\xd2']:  # Trade/Battle/Cancel
+                elif data in [b'\xd0', b'\xd1', b'\xd2']:  # Trade/Battle/Cancel
                     link.write(b'\xd0')
+                else:   # This is serial line.  We have to send something.
+                    link.write(data)
 
 
 class BGBConnectionHandler(StreamRequestHandler):
