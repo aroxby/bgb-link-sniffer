@@ -22,7 +22,7 @@ class AddressArgAction(argparse.Action):
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description='Sniff TCP Data')
+    parser = argparse.ArgumentParser(description='Interface with BGB')
     parser.add_argument(
         '--listen',
         action=AddressArgAction,
