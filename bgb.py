@@ -147,8 +147,7 @@ class ExampleLinkHandler(object):
 
 
 class BGBConnectionHandler(StreamRequestHandler):
-    def handle(self):
-        handler = ExampleLinkHandler()
+    def accept_client(self):
         client = BGBChannel(self.request)
         client.send_message(StandardBGBMessages.HANDSHAKE)
 
@@ -161,4 +160,40 @@ class BGBConnectionHandler(StreamRequestHandler):
             ]
 
         client.send_message(StandardBGBMessages.OPEN_STATUS)
-        handler.handle(BGBLinkFile(client))
+        return client
+
+    def connect_server(self):
+        upstream_address = self.server.upstream_address
+        upstream = TCPClient(upstream_address)
+        server = BGBChannel(upstream.__enter__())  # HACK
+
+        server.send_message(StandardBGBMessages.HANDSHAKE)
+
+        # Must wait for server to send handshake before proceeding
+        msgs = []
+        while not msgs:
+            msgs = [
+                msg for msg in server.recv_messages()
+                if msg.b1 == BGBMessage.CMD_HANDSHAKE
+            ]
+
+        server.send_message(StandardBGBMessages.OPEN_STATUS)
+
+        # Must wait for server to send status before proceeding
+        msgs = []
+        while not msgs:
+            msgs = [
+                msg for msg in server.recv_messages()
+                if msg.b1 == BGBMessage.CMD_STATUS
+            ]
+
+        # Send first sync
+        server.send_message(BGBMessage(
+            BGBMessage.CMD_TIME_SYNC, 0, 0, 0, 0
+        ))
+
+        return server
+
+    def handle(self):
+        handler = ExampleLinkHandler()
+        handler.handle(BGBLinkFile(self.accept_client()))
