@@ -138,12 +138,27 @@ class BGBRelayServer(ForkingTCPServer):
 
 # TODO: Remove
 class ExampleLinkHandler(object):
+    @staticmethod
+    def hex_dump(bytes):
+        hex = ''.join('x{:02x}'.format(byte) for byte in bytes)
+        return hex
+
     def handle(self, link):
         print('Client connected!')
         while not link.closed:
             data = link.read()
             if data:
-                print("Read: {}".format(data))
+                print("Read: " + self.hex_dump(data))
+                if data == b'\x00':     # Link established
+                    link.write(b'\x00')
+                if data == b'\x01':     # Client keeps the clock
+                    link.write(b'\x02')
+                if data == b'\x02':     # Server keeps the clock
+                    link.write(b'\x01')
+                if data == b'\x60':     # We have both saved the game?
+                    link.write(b'\x60')
+                if data in [b'\xd0', b'\xd1', b'\xd2']:  # Trade/Battle/Cancel
+                    link.write(b'\xd0')
 
 
 class BGBConnectionHandler(StreamRequestHandler):
