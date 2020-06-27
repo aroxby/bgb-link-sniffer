@@ -15,6 +15,7 @@ class BGBMessage(object):
     CMD_HANDSHAKE = 1
     CMD_MASTER_SYNC = 104
     CMD_SLAVE_SYNC = 105
+    CMD_TIME_SYNC = 106
     CMD_STATUS = 108
 
     @classmethod
@@ -63,7 +64,16 @@ class BGBChannel(object):
         while not self.closed and ready_to_read(self.socket):
             data = self.socket.recv(BGBMessage.SIZE)
             if data:
-                yield BGBMessage.unpack(data)
+                msg = BGBMessage.unpack(data)
+
+                # Every sync3 message must get another sync3 in reply.
+                # Otherwise, the client locks up waiting.
+                if msg.b1 == BGBMessage.CMD_TIME_SYNC:
+                    self.send_message(BGBMessage(
+                        BGBMessage.CMD_TIME_SYNC, 0, 0, 0, msg.i1
+                    ))
+
+                yield msg
             else:
                 self.closed = True
 
@@ -141,5 +151,14 @@ class BGBConnectionHandler(StreamRequestHandler):
         handler = ExampleLinkHandler()
         client = BGBChannel(self.request)
         client.send_message(StandardBGBMessages.HANDSHAKE)
+
+        # Must wait for client to send status before proceeding
+        msgs = []
+        while not msgs:
+            msgs = [
+                msg for msg in client.recv_messages()
+                if msg.b1 == BGBMessage.CMD_STATUS
+            ]
+
         client.send_message(StandardBGBMessages.OPEN_STATUS)
         handler.handle(BGBLinkFile(client))
